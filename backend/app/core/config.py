@@ -9,10 +9,12 @@ class Settings(BaseSettings):
     BACKEND_CORS_ORIGINS: List[str] = []
 
     # Database
-    POSTGRES_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/sanad_db"
+    POSTGRES_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/Talaqqi"
     
-    # GCP
-    # GCP_PROJECT_ID: str
+    # JWT Auth
+    SECRET_KEY: str = "juaravibecoding-super-secret-key-change-in-production"
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
 
     # Tambahkan env_file agar Pydantic membaca dari file .env secara otomatis
     model_config = SettingsConfigDict(case_sensitive=True, env_file=".env")

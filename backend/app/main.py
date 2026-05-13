@@ -2,11 +2,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 
+from app.api.endpoints import auth
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version="1.0.0",
     description="Enterprise Quranic SuperApp API (FastAPI + Pydantic V2)"
 )
+
+app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["auth"])
 
 # Set all CORS enabled origins
 if settings.BACKEND_CORS_ORIGINS:
