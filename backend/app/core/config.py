@@ -9,8 +9,7 @@ class Settings(BaseSettings):
     BACKEND_CORS_ORIGINS: List[str] = []
 
     # Database
-    # SPANNER_INSTANCE_ID: str
-    # SPANNER_DATABASE_ID: str
+    POSTGRES_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/sanad_db"
     
     # GCP
     # GCP_PROJECT_ID: str

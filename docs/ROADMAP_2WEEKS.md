@@ -25,4 +25,4 @@
 *Focus: Gamification and Enterprise-level Aesthetics*
 - [ ] **Day 12:** Build **Sparing Tilawah** Matchmaking using WebSockets (Simple random pairing).
 - [ ] **Day 13:** **UI/UX Polish:** Apply Glassmorphism, transition animations, dark mode refinements. Ensure zero layout shifts.
-- [ ] **Day 14:** Bug Bash, Latency Optimization, and Final Pitch Video Recording. 🚀
+- [ ] **Day 14:** Bug Bash, Latency Optimization, and Final Pitch Video Recording.
