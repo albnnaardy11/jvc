@@ -1,13 +1,12 @@
-from typing import List, Union
-from pydantic import AnyHttpUrl, validator
-from pydantic_settings import BaseSettings
+from typing import List
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Quranic SuperApp Enterprise API"
     API_V1_STR: str = "/api/v1"
     
     # CORS
-    BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = []
+    BACKEND_CORS_ORIGINS: List[str] = []
 
     # Database
     # SPANNER_INSTANCE_ID: str
@@ -16,7 +15,7 @@ class Settings(BaseSettings):
     # GCP
     # GCP_PROJECT_ID: str
 
-    class Config:
-        case_sensitive = True
+    # Tambahkan env_file agar Pydantic membaca dari file .env secara otomatis
+    model_config = SettingsConfigDict(case_sensitive=True, env_file=".env")
 
 settings = Settings()
