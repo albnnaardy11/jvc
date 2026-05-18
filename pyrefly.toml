@@ -1,0 +1,9 @@
+# Pyrefly configuration for JVC Backend
+# Tells Pyrefly to use the project's virtual environment, not the global Python
+
+python_interpreter = "./backend/venv/Scripts/python.exe"
+
+project_includes = ["backend"]
+
+# Add backend/ as a search root so `from app.xxx import yyy` resolves correctly
+search_path = ["./backend"]

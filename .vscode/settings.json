@@ -2,5 +2,10 @@
   "python.defaultInterpreterPath": "c:\\dev\\jvc\\backend\\venv\\Scripts\\python.exe",
   "python.analysis.extraPaths": [
     "c:\\dev\\jvc\\backend"
-  ]
+  ],
+  "python.analysis.pythonPath": "c:\\dev\\jvc\\backend\\venv\\Scripts\\python.exe",
+  "pyrefly.pythonInterpreter": "c:\\dev\\jvc\\backend\\venv\\Scripts\\python.exe",
+  "pyrefly.enable": false,
+  "python.terminal.activateEnvironment": true,
+  "python.analysis.typeCheckingMode": "basic"
 }
