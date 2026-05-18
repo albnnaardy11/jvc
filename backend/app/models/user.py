@@ -1,8 +1,10 @@
 from sqlalchemy import String, Enum, Float, Integer, DateTime, ForeignKey, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, Mapped, mapped_column
+from typing import Optional
 import uuid
 import enum
+import datetime
 from app.core.database import Base
 
 class AccountRole(str, enum.Enum):
@@ -18,7 +20,7 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
     account_role: Mapped[AccountRole] = mapped_column(Enum(AccountRole), default=AccountRole.USER)
     
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     
     # Relationships
     profile: Mapped["UserProfile"] = relationship("UserProfile", back_populates="user", uselist=False)
@@ -33,6 +35,6 @@ class UserProfile(Base):
     tajwid_score: Mapped[float] = mapped_column(Float, default=0.0)
     streak_days: Mapped[int] = mapped_column(Integer, default=0)
     
-    updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+    updated_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
     
     user: Mapped["User"] = relationship("User", back_populates="profile")

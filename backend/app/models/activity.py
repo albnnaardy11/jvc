@@ -3,6 +3,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 import uuid
 import enum
+import datetime
 from app.core.database import Base
 
 class ActivityType(str, enum.Enum):
@@ -18,6 +19,6 @@ class WorshipActivity(Base):
     activity_type: Mapped[ActivityType] = mapped_column(Enum(ActivityType), nullable=False)
     metric_value: Mapped[int] = mapped_column(Integer, nullable=False)  # e.g., duration in seconds or amount
     
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     
     user: Mapped["User"] = relationship("User")

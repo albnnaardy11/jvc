@@ -4,6 +4,7 @@ from sqlalchemy.orm import relationship, Mapped, mapped_column
 from typing import Optional
 import uuid
 import enum
+import datetime
 from app.core.database import Base
 
 class SetoranStatus(str, enum.Enum):
@@ -23,7 +24,7 @@ class SetoranSubmission(Base):
     audio_url: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[SetoranStatus] = mapped_column(Enum(SetoranStatus), default=SetoranStatus.PENDING_AI)
     
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     
     # Relationships
     murid: Mapped["User"] = relationship("User", foreign_keys=[murid_id])
@@ -36,6 +37,6 @@ class SetoranAIAnalysis(Base):
     submission_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("setoran_submissions.id"), primary_key=True)
     waveform_metadata: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     ai_confidence_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    processed_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    processed_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     
     submission: Mapped["SetoranSubmission"] = relationship("SetoranSubmission", back_populates="ai_analysis")

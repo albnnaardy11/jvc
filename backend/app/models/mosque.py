@@ -2,6 +2,7 @@ from sqlalchemy import String, DateTime, ForeignKey, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 import uuid
+import datetime
 from app.core.database import Base
 
 class Mosque(Base):
@@ -15,6 +16,6 @@ class Mosque(Base):
     # For now, we store it as a WKT string or use a specific geometry type.
     location: Mapped[str] = mapped_column(String, nullable=False)  # e.g. "POINT(longitude latitude)"
     
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     
     dkm: Mapped["User"] = relationship("User")

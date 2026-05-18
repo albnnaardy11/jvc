@@ -6,7 +6,7 @@
 - [x] **Day 1:** Initialize Next.js (Tailwind + Framer Motion) & FastAPI repos. Setup GCP Cloud Run & Cloud SQL (Postgres).
 - [x] **Day 2:** Implement JWT Role-Based Auth (User, Ustadz, DKM). Build base UI shells (Bottom Nav for Mobile, Sidebar for Admin).
 - [x] **Day 3:** Setup Database schemas (Prisma or SQLAlchemy) for Users, Activities, and Setoran.
-
+ro
 ## Phase 2: Core AI & The Hybrid Setoran (Days 4 - 7)
 *Focus: The "Wow Factor" Feature*
 - [ ] **Day 4:** Build the *User Audio Recorder* UI using Web Audio API (Opus). Implement direct-to-GCS upload.

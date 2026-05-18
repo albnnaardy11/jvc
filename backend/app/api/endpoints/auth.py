@@ -8,7 +8,7 @@ from sqlalchemy.future import select
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import verify_password, create_access_token, get_password_hash
-from app.models.user import User
+from app.models.user import User, UserProfile, AccountRole
 from app.api import deps
 
 router = APIRouter()
@@ -40,10 +40,11 @@ async def register_user(
     email: str,
     password: str,
     display_name: str,
+    role: AccountRole = AccountRole.USER,
     db: AsyncSession = Depends(get_db)
 ) -> Any:
     """
-    Create new user.
+    Create new user and their profile.
     """
     result = await db.execute(select(User).filter(User.email == email))
     if result.scalars().first():
@@ -55,9 +56,15 @@ async def register_user(
     user = User(
         email=email,
         password_hash=get_password_hash(password),
+        account_role=role,
+    )
+    profile = UserProfile(
         display_name=display_name,
     )
+    user.profile = profile
+    
     db.add(user)
+    db.add(profile)
     await db.commit()
     await db.refresh(user)
     
@@ -70,9 +77,10 @@ async def read_users_me(
     """
     Get current user.
     """
+    display_name = current_user.profile.display_name if current_user.profile else ""
     return {
         "id": current_user.id,
         "email": current_user.email,
-        "display_name": current_user.display_name,
+        "display_name": display_name,
         "role": current_user.account_role
     }
