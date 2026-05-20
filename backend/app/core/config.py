@@ -16,6 +16,13 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
 
+    # Groq STT (Whisper-large-v3)
+    GROQ_API_KEY: str = ""
+
+    # Supabase Storage Credentials
+    SUPABASE_URL: str = ""
+    SUPABASE_KEY: str = ""
+
     # Tambahkan env_file agar Pydantic membaca dari file .env secara otomatis
     model_config = SettingsConfigDict(case_sensitive=True, env_file=".env")
 

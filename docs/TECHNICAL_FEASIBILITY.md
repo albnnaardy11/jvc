@@ -15,13 +15,13 @@ To support a TAM of 2.2 - 3 Billion Muslims globally by 2030, the system must ov
 ## 3. Tooling Selection Matrix
 | Domain | Tool / Framework | Global Justification |
 | :--- | :--- | :--- |
-| **Database** | **Google Cloud Spanner** | The ONLY database that offers relational strictness (SQL) with infinite global horizontal scaling. No more manual sharding across continents. |
-| **Real-Time** | Firestore | Automatically synchronizes map/matchmaking data globally with sub-second latency. |
-| **AI/ASR** | Google Vertex AI (Chirp) | Chirp is trained on millions of hours of diverse audio. It can understand Arabic *Makhraj* regardless of whether the user has a Southeast Asian, European, or African accent. |
-| **CDN/Routing** | Cloudflare / Google Global Anycast | Ensures users connect to the closest data center. |
+| **Database** | **Supabase (PostgreSQL) - Free Tier** | Provides strict 3NF normalization, ACID transactions, and robust spatial querying (PostGIS) for the Mosque Explorer. Serves as the Master Relational DB. Free tier (500MB DB, 50k MAU) is more than sufficient for the hackathon MVP. |
+| **Real-Time** | **Firebase (Firestore) - Spark Plan** | Automatically synchronizes ephemeral matchmaking queues globally with sub-second latency, self-clearing via TTL. 100% Free up to 50k reads/20k writes per day. |
+| **AI/ASR (STT)** | **Groq API (Whisper-large-v3) - Free Tier** | OpenAI Whisper-large-v3 running on Groq's LPU hardware delivers sub-second transcription. Supports Arabic audio regardless of regional accent. The GroqCloud Free tier provides exceptional value for the MVP phase without incurring GPU inference costs. |
+| **CDN/Routing** | **Cloudflare - Free Plan** | Cloudflare is strictly used for Global CDN, DNS, and Edge Routing (Anycast) to ensure users connect to the closest data center globally. 100% Free with unlimited bandwidth. |
 
 ## 4. Risk & Mitigation Plan (Global Level)
 1. **Risk:** High Latency during Global Matchmaking (Sparing).
    * **Mitigation:** Implement *Region-Based Matchmaking*. A user in Indonesia is matched with someone in Malaysia/Singapore first to keep WebSocket ping < 50ms.
 2. **Risk:** AI Accuracy degrading due to heavy regional accents.
-   * **Mitigation:** Implement a feedback loop. Ustadz's manual corrections (where they override the AI) are fed back into Vertex AI to fine-tune the model for specific regional accents.
+   * **Mitigation:** Implement a feedback loop. Ustadz's manual Tajwid corrections (where they override the Groq/Whisper transcription) are stored in Supabase as a labeled dataset for future fine-tuning of regional accent variants.

@@ -1,5 +1,5 @@
 # ENTERPRISE DATABASE SCHEMA & ARCHITECTURE
-*Standard: Google Cloud Spanner / AWS Aurora (Multi-Region, High-Concurrency)*
+*Standard: Supabase (PostgreSQL) for Relational Master, Firebase (Firestore) for Real-Time Queues*
 
 ## I. CORE ENGINEERING PRINCIPLES (THE HARVARD/AWS STANDARD)
 
@@ -10,7 +10,7 @@
 
 ---
 
-## II. RELATIONAL SCHEMA (Google Cloud Spanner / PostgreSQL)
+## II. RELATIONAL SCHEMA (Supabase / PostgreSQL)
 
 ### A. AUTHENTICATION & PROFILES (Normalized)
 **Table: users (Auth Core)**
@@ -91,7 +91,7 @@
 
 ---
 
-## III. NoSQL / REAL-TIME (Firestore)
+## III. NoSQL / REAL-TIME (Firebase Firestore)
 *For ephemeral, extremely high-speed data where relational strictness is not needed.*
 
 **Collection: matchmaking_pool (Global Sparing)**

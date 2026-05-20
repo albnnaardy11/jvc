@@ -11,10 +11,10 @@
 - **[Business Case & KPI Definitions](./BUSINESS_CASE.md):** Details the Problem Statement, Value Proposition, and Core KPIs for global scaling.
 
 ### 2. Architecture & Feasibility
-- **[Technical Feasibility Study](./TECHNICAL_FEASIBILITY.md):** Cloud Spanner integration, Edge routing, and Global Latency mitigation.
+- **[Technical Feasibility Study](./TECHNICAL_FEASIBILITY.md):** Supabase (PostgreSQL) integration, Edge routing, and Global Latency mitigation.
 - **[Anatomy Planning](./ANATOMY_PLANNING.md):** PWA Mobile-first UI layouts.
 - **[System Architecture (Technical)](./ARCHITECTURE_TECHNICAL.md):** GCP integrations, Edge deployment, and Pub/Sub mechanics.
-- **[Database Schema](./DATABASE_SCHEMA.md):** Cloud Spanner (SQL) and Firestore mappings.
+- **[Database Schema](./DATABASE_SCHEMA.md):** Supabase (PostgreSQL) and Firebase (Firestore) mappings.
 - **[Engineering Manifesto](./ENGINEERING_MANIFESTO.md):** Linus Torvalds strict code constraints.
 - **[Mobile UX Guidelines](./MOBILE_UX_GUIDELINES.md):** PWA Touch targets, offline caching.
 

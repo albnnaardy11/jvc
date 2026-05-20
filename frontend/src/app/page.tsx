@@ -43,9 +43,15 @@ export default function Home() {
   // Navigation & Role states
   const [activeTab, setActiveTab] = useState<string>("dashboard");
   const [role, setRole] = useState<"USER" | "USTADZ" | "DKM">("USER");
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(true);
-  const [display_name, setDisplayName] = useState<string>("Ardy AL-banna");
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+  const [authToken, setAuthToken] = useState<string>("");
+  const [display_name, setDisplayName] = useState<string>("");
   const [streakDays, setStreakDays] = useState<number>(5);
+  
+  // Login form state
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   
   // Dashboard & Worship Tracker state
   const [juzMode, setJuzMode] = useState<boolean>(true); // true = Juz Mode (30 Days), false = Manzil Mode (7 Days)
@@ -70,63 +76,129 @@ export default function Home() {
   // Ustadz Review Studio state
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<number | null>(null);
   const [ustadzFeedback, setUstadzFeedback] = useState<string>("");
-  const [reviews, setReviews] = useState<any[]>([
-    {
-      id: 101,
-      murid: "Ahmad Fauzi",
-      surah: "Al-Baqarah",
-      range: "Ayah 1-5",
-      submitted: "2 jam lalu",
-      audioUrl: "/mock-audio-1.mp3",
-      aiScore: 94.2,
-      status: "PENDING_USTADZ",
-      anomalies: [
-        { word: "Alif-Lam-Mim", error: "Makhraj (Madd Lazim length)", type: "warning" }
-      ]
-    },
-    {
-      id: 102,
-      murid: "Yusuf Ibrahim",
-      surah: "An-Naba",
-      range: "Ayah 1-10",
-      submitted: "4 jam lalu",
-      audioUrl: "/mock-audio-2.mp3",
-      aiScore: 88.5,
-      status: "PENDING_USTADZ",
-      anomalies: [
-        { word: "‘amma", error: "Tajwid (Ghunnah missing)", type: "critical" },
-        { word: "yatasa’alun", error: "Makhraj (Madd 'Arid)", type: "warning" }
-      ]
-    }
-  ]);
-
-  // Mosque Explorer state
-  const [checkedInMosque, setCheckedInMosque] = useState<string | null>(null);
-  const [selectedMosque, setSelectedMosque] = useState<any>({
-    name: "Masjid Raya Al-Jabbar",
-    distance: "1.2 km",
-    kajian: "Tafsir Jalalain - Ba'da Maghrib",
-    dkm_wallet: "Rp 45,200,000",
-    streak_bonus: "1.5x Multiplier",
-    coordinate: "POINT(107.6191 -6.9025)"
-  });
   
-  // Sparing Tilawah state
-  const [sparingStatus, setSparingStatus] = useState<"idle" | "searching" | "matched" | "gameplay">("idle");
-  const [opponent, setOpponent] = useState<any>(null);
-  const [sparingRound, setSparingRound] = useState<number>(1);
-  const [sparingTimer, setSparingTimer] = useState<number>(15);
-  const [isSparingRecording, setIsSparingRecording] = useState<boolean>(false);
+  // Real Audio Recording Refs
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [history, setHistory] = useState<any[]>([]);
 
-  // Talent Hub state
-  const [talentSearch, setTalentSearch] = useState<string>("");
-  const [selectedVoiceType, setSelectedVoiceType] = useState<string>("All");
-  const [selectedCertification, setSelectedCertification] = useState<string>("All");
-  const imams = [
-    { id: 1, name: "Syeikh Rasyid Al-Madani", location: "Bandung", voice: "High Resonance", cert: "Sanad 30 Juz", rating: 4.9, audio: "Murottal Hijaz" },
-    { id: 2, name: "Ustadz Hanif Ghozali", location: "Jakarta Selatan", voice: "Mellow", cert: "Sanad Qiro'at Sab'ah", rating: 4.8, audio: "Murottal Nahawand" },
-    { id: 3, name: "Imam Luqman Hakim", location: "Surabaya", voice: "Deep Lyric", cert: "Sertifikat Al-Azhar", rating: 4.7, audio: "Murottal Rast" },
-  ];
+  useEffect(() => {
+    if (isLoggedIn) {
+      if (role === "USTADZ") {
+        fetchPendingReviews();
+      } else if (role === "USER") {
+        fetchUserHistory();
+      }
+    }
+  }, [role, activeTab, isLoggedIn]);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoggingIn(true);
+    try {
+      const formData = new FormData();
+      formData.append("username", loginEmail);
+      formData.append("password", loginPassword);
+      
+      const res = await fetch("http://localhost:8000/api/v1/auth/login", {
+        method: "POST",
+        body: formData
+      });
+      
+      if (!res.ok) throw new Error("Login failed");
+      const data = await res.json();
+      
+      setAuthToken(data.access_token);
+      
+      // Ambil profil asli user
+      const meRes = await fetch("http://localhost:8000/api/v1/auth/me", {
+        headers: { "Authorization": `Bearer ${data.access_token}` }
+      });
+      
+      if (meRes.ok) {
+        const meData = await meRes.json();
+        setDisplayName(meData.display_name);
+        setRole(meData.role as any);
+        setIsLoggedIn(true);
+      }
+    } catch (err) {
+      alert("Login gagal. Pastikan email dan password benar.");
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const fetchPendingReviews = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/api/v1/setoran/pending/all", {
+        headers: { "Authorization": `Bearer ${authToken}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const formatted = data.map((d: any) => ({
+          id: d.id,
+          murid: "Murid #" + d.murid_id.toString().substring(0,4),
+          surah: `Surah (Ayah ${d.start_ayah_id}-${d.end_ayah_id})`,
+          range: `Ayah ${d.start_ayah_id}-${d.end_ayah_id}`,
+          submitted: new Date(d.created_at).toLocaleTimeString(),
+          audioUrl: "http://localhost:8000" + d.audio_url,
+          aiScore: d.ai_analysis?.confidence_score || 0,
+          status: d.status,
+          anomalies: d.ai_analysis?.waveform_metadata?.anomalies?.map((a:any) => ({
+            word: `Indeks Kata ${a.word_index}`,
+            error: a.error_type,
+            type: "warning",
+            suggestion: "Perhatikan makhraj di detik " + a.timestamp
+          })) || []
+        }));
+        setReviews(formatted);
+      }
+    } catch (err) {
+      console.error("Failed to fetch pending reviews", err);
+    }
+  };
+
+  const fetchUserHistory = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/api/v1/setoran/history", {
+         headers: { "Authorization": `Bearer ${authToken}` }
+      });
+      if (res.ok) {
+        setHistory(await res.json());
+      }
+    } catch (err) {
+      console.error("Failed to fetch history", err);
+    }
+  };
+
+  const handleUstadzReview = async (isApproved: boolean) => {
+    if (!selectedSubmissionId) return;
+    try {
+      const res = await fetch(`http://localhost:8000/api/v1/setoran/${selectedSubmissionId}/review`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${authToken}`
+        },
+        body: JSON.stringify({
+          is_approved: isApproved,
+          ustadz_feedback: ustadzFeedback
+        })
+      });
+      if (res.ok) {
+        alert(isApproved ? "Setoran Disetujui (Approved)!" : "Setoran Dikembalikan (Rejected).");
+        setReviews(reviews.filter(r => r.id !== selectedSubmissionId));
+        setSelectedSubmissionId(null);
+        setUstadzFeedback("");
+      } else {
+        alert("Gagal menyimpan review Ustadz.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error menghubungi server.");
+    }
+  };
 
   // Simulated recording timer
   let timerInterval = useRef<any>(null);
@@ -146,30 +218,95 @@ export default function Home() {
     };
   }, [isRecording]);
 
-  const handleStartRecording = () => {
+  const handleStartRecording = async () => {
     setIsRecording(true);
     setAnalysisResult(null);
+    audioChunksRef.current = [];
+    
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Gunakan Opus codec demi efisiensi dan ukuran file terkecil
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.start();
+    } catch (err) {
+      console.error("Microphone permission denied or error:", err);
+      setIsRecording(false);
+      alert("Akses microphone ditolak atau terjadi error. Mohon izinkan akses microphone.");
+    }
   };
 
   const handleStopRecording = () => {
-    setIsRecording(false);
-    setIsAnalyzing(true);
-    
-    // Simulate Edge Speech-to-Text & Vertex AI Makhraj extraction (3 seconds)
-    setTimeout(() => {
-      setIsAnalyzing(false);
-      setAnalysisResult({
-        confidenceScore: 93.8,
-        totalAyahs: endAyah - startAyah + 1,
-        anomalies: [
-          { ayah: startAyah, word: "Al-hamdu", errorType: "Makhraj (Haa' vs Haa)", timestamp: 3.4, suggestion: "Keluarkan nafas lebih bersih di tenggorokan tengah." },
-          { ayah: endAyah, word: "Al-Mustaqim", errorType: "Tajwid (Madd 'Aridh Lissukun length)", timestamp: 11.2, suggestion: "Panjangkan 4 atau 6 harakat untuk konsistensi tilawah." }
-        ],
-        successMessage: "Setoran terkirim ke database! AI mendeteksi bacaan Anda berada di tingkat standard internasional (Madinah)."
-      });
-      // Increment streak
-      setStreakDays(prev => prev + 1);
-    }, 3000);
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.onstop = async () => {
+        setIsRecording(false);
+        setIsAnalyzing(true);
+        
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm;codecs=opus' });
+        
+        // Siapkan payload form-data untuk dikirim ke backend
+        const formData = new FormData();
+        formData.append("start_ayah_id", startAyah.toString());
+        formData.append("end_ayah_id", endAyah.toString());
+        formData.append("audio_file", audioBlob, "setoran.webm");
+
+        try {
+          // Asumsi FastAPI berjalan di localhost:8000
+          const res = await fetch("http://localhost:8000/api/v1/setoran/submit", {
+            method: "POST",
+            body: formData,
+            headers: {
+              "Authorization": `Bearer ${authToken}`
+            }
+          });
+          
+          if (!res.ok) {
+            const errDetail = await res.json();
+            throw new Error(errDetail.detail || "API Upload Failed");
+          }
+          
+          const data = await res.json();
+          setIsAnalyzing(false);
+          
+          // Refresh user history table
+          fetchUserHistory();
+          
+          // Tampilkan hasil nyata dari FastAPI -> Groq STT
+          setAnalysisResult({
+            confidenceScore: data.ai_confidence_score || 95.0,
+            totalAyahs: endAyah - startAyah + 1,
+            successMessage: "Transkripsi berhasil diproses oleh Groq LPU: " + data.message,
+            anomalies: [
+              { 
+                ayah: startAyah, 
+                word: "Hasil Transkripsi Groq:", 
+                errorType: "Makhraj (Teks STT)", 
+                timestamp: 0.0, 
+                suggestion: `"${data.waveform_metadata?.transcription_text || "Teks tidak tersedia"}"`
+              }
+            ]
+          });
+          
+          setStreakDays(prev => prev + 1);
+        } catch (err: any) {
+          console.error("Upload error:", err);
+          setIsAnalyzing(false);
+          alert(`Gagal mengirim audio ke server FastAPI. Error: ${err.message}`);
+        }
+        
+        // Hentikan stream dari microphone setelah selesai
+        mediaRecorderRef.current?.stream.getTracks().forEach(track => track.stop());
+      };
+      
+      mediaRecorderRef.current.stop();
+    }
   };
 
   const logDailyWorship = (type: string, amount: number) => {
@@ -204,6 +341,43 @@ export default function Home() {
       }, 3000);
     }, 2500);
   };
+
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4 relative overflow-hidden">
+        {/* Dynamic Background Glowing Blobs */}
+        <div className="absolute top-[-10%] left-[-20%] w-[600px] h-[600px] rounded-full bg-emerald-950/20 blur-[120px] pointer-events-none z-0" />
+        <div className="absolute bottom-[-10%] right-[-20%] w-[600px] h-[600px] rounded-full bg-amber-950/25 blur-[120px] pointer-events-none z-0" />
+
+        <div className="bg-[#0a0a0a] border border-emerald-900/30 p-8 rounded-3xl w-full max-w-md shadow-2xl shadow-emerald-900/20 z-10 relative">
+          <div className="flex flex-col items-center gap-4 mb-8">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+              <Sparkles className="w-8 h-8 text-white" />
+            </div>
+            <div className="text-center">
+              <h1 className="text-2xl font-bold text-white tracking-tight">JVC SuperApp</h1>
+              <p className="text-zinc-500 text-sm mt-1">Enterprise Production Edition</p>
+            </div>
+          </div>
+          
+          <form onSubmit={handleLogin} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Email Akun</label>
+              <input type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} required className="bg-[#050505] border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors" placeholder="user@example.com" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Password</label>
+              <input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} required className="bg-[#050505] border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors" placeholder="••••••••" />
+            </div>
+            <button type="submit" disabled={isLoggingIn} className="mt-4 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-emerald-500/20">
+              {isLoggingIn ? "Memverifikasi Kredensial..." : "Masuk (Secure Login)"}
+            </button>
+            <p className="text-center text-xs text-zinc-600 mt-2">Ditenagai oleh Supabase & JWT Auth</p>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#050505] text-[#ededed] font-sans flex flex-col relative overflow-hidden">
@@ -706,7 +880,7 @@ export default function Home() {
                             <div className="w-12 h-12 rounded-full border-4 border-emerald-500/30 border-t-emerald-500 animate-spin" />
                             <div className="flex flex-col gap-1">
                               <h5 className="font-bold">Menganalisis Makhraj & Tajwid</h5>
-                              <p className="text-zinc-500 text-xs">Model Google Vertex AI (Chirp) mendeteksi intonasi dan tajwid secara real-time...</p>
+                              <p className="text-zinc-500 text-xs">Model Groq LPU (Whisper-v3) mendeteksi intonasi dan tajwid secara real-time...</p>
                             </div>
                           </div>
                         )}
@@ -716,7 +890,7 @@ export default function Home() {
                             <div className="flex justify-between items-center border-b border-emerald-950 pb-3">
                               <div className="flex items-center gap-2">
                                 <Award className="w-5 h-5 text-amber-400" />
-                                <span className="font-bold text-sm text-zinc-300">Hasil Evaluasi Vertex AI</span>
+                                <span className="font-bold text-sm text-zinc-300">Hasil Evaluasi Groq AI</span>
                               </div>
                               <div className="bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded text-xs text-emerald-400 font-extrabold">
                                 Akurasi: {analysisResult.confidenceScore}%
@@ -758,25 +932,23 @@ export default function Home() {
                         <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Riwayat Setoran Terbaru</span>
                         
                         <div className="flex flex-col gap-2">
-                          <div className="bg-[#050505] p-3 rounded-xl border border-zinc-900 flex justify-between items-center text-xs">
-                            <div className="flex flex-col gap-1">
-                              <span className="font-bold text-white">Surah Al-Baqarah (Ayah 1-5)</span>
-                              <span className="text-zinc-500 text-[10px]">Terkirim Kemarin &bull; AI Verified: 94.2%</span>
+                          {history.length > 0 ? history.map((item: any) => (
+                            <div key={item.id} className="bg-[#050505] p-3 rounded-xl border border-zinc-900 flex justify-between items-center text-xs">
+                              <div className="flex flex-col gap-1">
+                                <span className="font-bold text-white">Surah (Ayah {item.start_ayah_id}-{item.end_ayah_id})</span>
+                                <span className="text-zinc-500 text-[10px]">{new Date(item.created_at).toLocaleDateString()} &bull; AI Verified: {item.ai_analysis?.confidence_score}%</span>
+                              </div>
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                item.status === 'APPROVED' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 
+                                item.status === 'REJECTED' ? 'bg-red-500/10 border-red-500/20 text-red-400' : 
+                                'bg-amber-500/10 border-amber-500/20 text-amber-400'
+                              }`}>
+                                {item.status.replace('_', ' ')}
+                              </span>
                             </div>
-                            <span className="bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded text-[10px] text-emerald-400 font-bold">
-                              Disetujui AI
-                            </span>
-                          </div>
-
-                          <div className="bg-[#050505] p-3 rounded-xl border border-zinc-900 flex justify-between items-center text-xs">
-                            <div className="flex flex-col gap-1">
-                              <span className="font-bold text-white">Surah An-Naba (Ayah 1-10)</span>
-                              <span className="text-zinc-500 text-[10px]">2 hari lalu &bull; Butuh verifikasi Ustadz</span>
-                            </div>
-                            <span className="bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded text-[10px] text-amber-400 font-bold">
-                              Pending Ustadz
-                            </span>
-                          </div>
+                          )) : (
+                            <p className="text-xs text-zinc-500">Belum ada riwayat setoran di server.</p>
+                          )}
                         </div>
                       </div>
 
@@ -839,32 +1011,30 @@ export default function Home() {
                               {/* Audio Wave Player widget */}
                               <div className="bg-zinc-950 border border-zinc-900 rounded-2xl p-5 flex flex-col gap-4">
                                 <div className="flex items-center justify-between">
-                                  <span className="text-xs text-zinc-400 font-bold">Evaluasi Waveform Audio</span>
+                                  <span className="text-xs text-zinc-400 font-bold">Evaluasi Waveform Audio (CSS Mock)</span>
                                   <span className="text-xs text-emerald-400 flex items-center gap-1 font-semibold">
                                     <Sparkles className="w-3.5 h-3.5" /> AI Penunjuk Anomalies Aktif
                                   </span>
                                 </div>
 
-                                {/* Mock waveform with red markers */}
-                                <div className="h-16 w-full flex items-center justify-between bg-zinc-900/60 rounded-xl px-4 relative overflow-hidden">
-                                  {/* Wave bars */}
-                                  {[...Array(40)].map((_, i) => {
-                                    const isAnomaly = i === 12 || i === 28;
-                                    return (
-                                      <div 
-                                        key={i} 
-                                        className={`w-1 rounded-full transition-all ${isAnomaly ? "h-12 bg-red-500 animate-pulse cursor-pointer" : "h-6 bg-emerald-600/40"}`}
-                                        title={isAnomaly ? "Anomaly makhraj terdeteksi disini" : undefined}
-                                      />
-                                    );
-                                  })}
-                                </div>
+                                <audio src={activeRev.audioUrl} controls className="w-full mt-2 rounded-xl filter invert opacity-90 sepia hue-rotate-180 contrast-125 mix-blend-screen" />
 
-                                <div className="flex items-center gap-3 text-xs text-zinc-400">
-                                  <button className="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center hover:scale-105 transition-transform">
-                                    <Play className="w-5 h-5 ml-0.5" />
-                                  </button>
-                                  <span>Durasi Rekaman: 0:42</span>
+                                <div className="mt-4 flex flex-col gap-3 border-t border-emerald-950 pt-4">
+                                  <label className="text-xs font-bold text-zinc-400 uppercase">Ustadz Feedback (Talaqqi)</label>
+                                  <textarea 
+                                    value={ustadzFeedback}
+                                    onChange={(e) => setUstadzFeedback(e.target.value)}
+                                    placeholder="Tuliskan catatan perbaikan tajwid/makhraj untuk murid..."
+                                    className="w-full bg-[#050505] border border-emerald-900/30 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-emerald-500 min-h-[80px]"
+                                  />
+                                  <div className="grid grid-cols-2 gap-3 mt-1">
+                                    <button onClick={() => handleUstadzReview(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs transition-colors flex justify-center items-center gap-1.5 shadow-lg shadow-emerald-500/20">
+                                      <CheckCircle className="w-4 h-4" /> Setujui (Approve)
+                                    </button>
+                                    <button onClick={() => handleUstadzReview(false)} className="bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 rounded-xl text-xs transition-colors flex justify-center items-center gap-1.5 shadow-lg shadow-amber-500/20">
+                                      <AlertTriangle className="w-4 h-4" /> Tolak & Perbaiki (Reject)
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
 

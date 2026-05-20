@@ -2,9 +2,10 @@
 
 ## 1. System Topology (Multi-Region)
 To serve 2.2 to 3 Billion users globally, the architecture must survive extreme spikes (e.g., during Ramadan) and provide sub-second latency worldwide.
-- **Global Edge Routing:** Next.js deployed on Vercel Edge Network or Cloudflare Workers. Requests hit the nearest data center (Anycast routing).
+> **Note for JuaraVibeCoding Hackathon:** During the MVP phase, this entire 3-billion scale blueprint is scaled down to run on **100% Zero-Cost Free Tiers** (Supabase Free, Vercel Hobby, Cloudflare Free, Groq Free, Firebase Spark) to demonstrate maximum capital efficiency without sacrificing enterprise design patterns.
+- **Global Edge Routing:** Next.js deployed strictly behind Cloudflare. Requests hit the nearest data center via Cloudflare's Global Anycast network for ultimate DDoS protection and CDN caching.
 - **Backend API:** FastAPI (Python) orchestrated via Google Cloud Run (Multi-region deployment: `us-central1`, `europe-west4`, `asia-southeast1`).
-- **AI/ML Layer:** Google Vertex AI for advanced LLM reasoning, Google Cloud Speech-to-Text (Chirp) optimized for global Arabic accents.
+- **AI/ML Layer:** **Groq API (Whisper-large-v3)** for ultra-fast Speech-to-Text (STT) transcription of Setoran audio. Called server-side from the FastAPI backend using the official `groq` Python SDK. Groq's LPU inference provides sub-second transcription latency vs. traditional GPU-based APIs.
 - **Content Delivery (CDN):** Global CDN caching for all static assets and Ustadz audio feedback.
 
 ## 2. Next.js Frontend (Global Localization)
@@ -18,5 +19,5 @@ To serve 2.2 to 3 Billion users globally, the architecture must survive extreme 
 ## 4. Google Cloud Infrastructure (The 3-Billion Pivot)
 - **Compute:** Cloud Run (Auto-scaling from 0 to 10,000+ container instances globally in seconds).
 - **Database (The Heavy Lifter):** 
-  - *Google Cloud Spanner:* We bypass standard PostgreSQL and use Spanner. It provides the relational strictness of SQL with the infinite, global horizontal scalability of NoSQL. Essential for syncing user data across continents without replication lag.
-  - *Firestore:* For real-time, low-latency data (Matchmaking, Map Activities) localized to specific regions.
+  - *Supabase (PostgreSQL):* Serves as the master database ensuring strict ACID compliance, relational data integrity (Strict 3NF), and PostGIS mapping for Mosque spatial data.
+  - *Firebase (Firestore):* Used exclusively as an ephemeral, real-time queue engine for low-latency Matchmaking and Sparing Tilawah, auto-clearing via TTL.
