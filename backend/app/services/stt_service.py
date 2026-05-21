@@ -11,12 +11,13 @@ import os
 import io
 from groq import Groq
 from fastapi import HTTPException, UploadFile
+from app.core.config import settings
 
 SUPPORTED_AUDIO_FORMATS = {"audio/mpeg", "audio/mp4", "audio/m4a", "audio/webm", "audio/wav", "audio/ogg"}
 MAX_AUDIO_BYTES = 25 * 1024 * 1024  # Groq Whisper limit: 25 MB
 
-# Client is instantiated once at module load — reads GROQ_API_KEY from environment
-_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+# Client is instantiated once at module load
+_client = Groq(api_key=settings.GROQ_API_KEY)
 
 
 async def transcribe_audio(file: UploadFile, language: str = "ar") -> dict:

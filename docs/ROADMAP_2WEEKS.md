@@ -16,8 +16,8 @@ ro
 
 ## Phase 3: Social Mechanics & Map (Days 8 - 11)
 *Focus: The "Strava" effect and Real-time Map*
-- [ ] **Day 8:** Build the **Worship Tracker** data structure and the *Deen-Feed* UI.
-- [ ] **Day 9:** Develop the **"Export to IG/WA" Image Generator** (Dynamic Canvas/SVG to Image generation).
+- [x] **Day 8:** Build the **Worship Tracker** data structure and the *Deen-Feed* UI.
+- [x] **Day 9:** Develop the **"Export to IG/WA" Image Generator** (Dynamic Canvas/SVG to Image generation).
 - [ ] **Day 10:** Integrate Google Maps API / Mapbox. Build the **Mosque Explorer** and Live Activities radar.
 - [ ] **Day 11:** Implement Check-in logic and Badge rendering.
 

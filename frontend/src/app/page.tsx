@@ -33,6 +33,14 @@ import {
   Plus
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import dynamic from 'next/dynamic';
+
+const DynamicOSMMap = dynamic(() => import('../components/OSMMapComponent'), {
+  ssr: false,
+  loading: () => <div className="w-full h-full flex items-center justify-center bg-[#050505] text-emerald-500 font-bold animate-pulse">Memuat Peta OpenStreetMap...</div>
+});
+
+import ExportCardModal from "../components/ExportCardModal";
 
 // Custom UI Colors:
 // - Gold: #D4AF37
@@ -45,13 +53,23 @@ export default function Home() {
   const [role, setRole] = useState<"USER" | "USTADZ" | "DKM">("USER");
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [authToken, setAuthToken] = useState<string>("");
-  const [display_name, setDisplayName] = useState<string>("");
-  const [streakDays, setStreakDays] = useState<number>(5);
-  
+  const [display_name, setDisplayName] = useState<string>("Tamu");
+  const [streakDays, setStreakDays] = useState<number>(0);
+  const [showExportModal, setShowExportModal] = useState<boolean>(false);
+
   // Login form state
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+
+  // Register form state
+  const [registerEmail, setRegisterEmail] = useState("");
+  const [registerPassword, setRegisterPassword] = useState("");
+  const [registerName, setRegisterName] = useState("");
+  const [registerRole, setRegisterRole] = useState<"USER" | "USTADZ" | "DKM">("USER");
+  const [isRegistering, setIsRegistering] = useState(false);
+
   
   // Dashboard & Worship Tracker state
   const [juzMode, setJuzMode] = useState<boolean>(true); // true = Juz Mode (30 Days), false = Manzil Mode (7 Days)
@@ -83,15 +101,83 @@ export default function Home() {
   const [reviews, setReviews] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
 
+  // Mosque Explorer state
+  const [checkedInMosque, setCheckedInMosque] = useState<string | null>(null);
+  const [selectedMosque, setSelectedMosque] = useState<any | null>(null);
+
+  // Google Maps State
+  const [locationGranted, setLocationGranted] = useState<boolean>(false);
+  const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [mosquesList, setMosquesList] = useState<any[]>([]);
+  const [locationError, setLocationError] = useState<string>("");
+  
   useEffect(() => {
-    if (isLoggedIn) {
+    if (locationGranted && userLocation) {
+      const fetchMosques = async () => {
+        try {
+          const query = `
+            [out:json];
+            node["amenity"="place_of_worship"]["religion"="islam"](around:15000,${userLocation.lat},${userLocation.lng});
+            out;
+          `;
+          const response = await fetch('https://overpass-api.de/api/interpreter', {
+            method: 'POST',
+            body: query
+          });
+          if (response.ok) {
+            const data = await response.json();
+            setMosquesList(data.elements || []);
+          }
+        } catch (error) {
+          console.error("Gagal mengambil data masjid dari OSM", error);
+        }
+      };
+      fetchMosques();
+    }
+  }, [locationGranted, userLocation]);
+
+  // Sparing Tilawah state
+  const [sparingStatus, setSparingStatus] = useState<"idle" | "searching" | "matched" | "gameplay">("idle");
+  const [opponent, setOpponent] = useState<any>(null);
+  const [sparingRound, setSparingRound] = useState<number>(1);
+  const [sparingTimer, setSparingTimer] = useState<number>(15);
+  const [isSparingRecording, setIsSparingRecording] = useState<boolean>(false);
+
+  // Talent Hub state
+  const [talentSearch, setTalentSearch] = useState<string>("");
+  const [selectedVoiceType, setSelectedVoiceType] = useState<string>("All");
+  const [selectedCertification, setSelectedCertification] = useState<string>("All");
+  const imams = [
+    { id: 1, name: "Syeikh Rasyid Al-Madani", location: "Bandung", voice: "High Resonance", cert: "Sanad 30 Juz", rating: 4.9, audio: "Murottal Hijaz" },
+    { id: 2, name: "Ustadz Hanif Ghozali", location: "Jakarta Selatan", voice: "Mellow", cert: "Sanad Qiro'at Sab'ah", rating: 4.8, audio: "Murottal Nahawand" },
+    { id: 3, name: "Imam Luqman Hakim", location: "Surabaya", voice: "Deep Lyric", cert: "Sertifikat Al-Azhar", rating: 4.7, audio: "Murottal Rast" },
+  ];
+
+  const fetchWorshipStats = async (token: string) => {
+    try {
+      const res = await fetch("http://localhost:8000/api/v1/worship/stats", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setStreakDays(data.streak_days || 0);
+        setPagesReadToday(data.total_tilawah_pages || 0);
+      }
+    } catch (err) {
+      console.error("Failed to fetch worship stats", err);
+    }
+  };
+
+  useEffect(() => {
+    if (isLoggedIn && authToken) {
+      fetchWorshipStats(authToken);
       if (role === "USTADZ") {
         fetchPendingReviews();
       } else if (role === "USER") {
         fetchUserHistory();
       }
     }
-  }, [role, activeTab, isLoggedIn]);
+  }, [role, activeTab, isLoggedIn, authToken]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,14 +204,42 @@ export default function Home() {
       
       if (meRes.ok) {
         const meData = await meRes.json();
-        setDisplayName(meData.display_name);
+        setDisplayName(meData.display_name || meData.email);
         setRole(meData.role as any);
         setIsLoggedIn(true);
+        fetchWorshipStats(data.access_token);
       }
     } catch (err) {
       alert("Login gagal. Pastikan email dan password benar.");
     } finally {
       setIsLoggingIn(false);
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsRegistering(true);
+    try {
+      const params = new URLSearchParams({
+        email: registerEmail,
+        password: registerPassword,
+        display_name: registerName,
+        role: registerRole
+      });
+      const res = await fetch(`http://localhost:8000/api/v1/auth/register?${params.toString()}`, {
+        method: "POST"
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || "Registrasi gagal");
+      }
+      alert("Akun berhasil dibuat! Silakan login sekarang.");
+      setAuthMode("login");
+      setLoginEmail(registerEmail);
+    } catch (err: any) {
+      alert(`Gagal mendaftar: ${err.message}`);
+    } finally {
+      setIsRegistering(false);
     }
   };
 
@@ -309,7 +423,7 @@ export default function Home() {
     }
   };
 
-  const logDailyWorship = (type: string, amount: number) => {
+  const logDailyWorship = async (type: string, amount: number) => {
     const newAct = {
       id: Date.now(),
       type: type,
@@ -319,6 +433,20 @@ export default function Home() {
     setLoggedActivities([newAct, ...loggedActivities]);
     if (type === "TILAWAH") {
       setPagesReadToday(prev => Math.min(prev + amount, dailyTarget));
+    }
+
+    // Sync to backend
+    try {
+      await fetch("http://localhost:8000/api/v1/worship/log", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ activity_type: type, metric_value: amount })
+      });
+    } catch (err) {
+      console.warn("Gagal sync ke backend, aktivitas hanya tersimpan lokal.", err);
     }
   };
 
@@ -360,20 +488,54 @@ export default function Home() {
             </div>
           </div>
           
-          <form onSubmit={handleLogin} className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Email Akun</label>
-              <input type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} required className="bg-[#050505] border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors" placeholder="user@example.com" />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Password</label>
-              <input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} required className="bg-[#050505] border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors" placeholder="••••••••" />
-            </div>
-            <button type="submit" disabled={isLoggingIn} className="mt-4 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-emerald-500/20">
-              {isLoggingIn ? "Memverifikasi Kredensial..." : "Masuk (Secure Login)"}
-            </button>
-            <p className="text-center text-xs text-zinc-600 mt-2">Ditenagai oleh Supabase & JWT Auth</p>
-          </form>
+          <div className="flex bg-[#111] p-1 rounded-xl mb-6">
+            <button onClick={() => setAuthMode("login")} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${authMode === "login" ? "bg-emerald-600 text-white" : "text-zinc-400"}`}>Masuk</button>
+            <button onClick={() => setAuthMode("register")} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${authMode === "register" ? "bg-emerald-600 text-white" : "text-zinc-400"}`}>Daftar</button>
+          </div>
+
+          {authMode === "login" ? (
+            <form onSubmit={handleLogin} className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Email Akun</label>
+                <input type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} required className="bg-[#050505] border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors" placeholder="user@example.com" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Password</label>
+                <input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} required className="bg-[#050505] border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors" placeholder="••••••••" />
+              </div>
+              <button type="submit" disabled={isLoggingIn} className="mt-4 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-emerald-500/20">
+                {isLoggingIn ? "Memverifikasi..." : "Masuk (Secure Login)"}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleRegister} className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Nama Tampilan</label>
+                <input type="text" value={registerName} onChange={e => setRegisterName(e.target.value)} required className="bg-[#050505] border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors" placeholder="Nama Anda" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Email Akun</label>
+                <input type="email" value={registerEmail} onChange={e => setRegisterEmail(e.target.value)} required className="bg-[#050505] border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors" placeholder="user@example.com" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Password</label>
+                <input type="password" value={registerPassword} onChange={e => setRegisterPassword(e.target.value)} required className="bg-[#050505] border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors" placeholder="Minimal 8 karakter" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Peran (Role)</label>
+                <select value={registerRole} onChange={e => setRegisterRole(e.target.value as any)} className="bg-[#050505] border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors appearance-none">
+                  <option value="USER">Murid (User Biasa)</option>
+                  <option value="USTADZ">Ustadz (Guru Ngaji)</option>
+                  <option value="DKM">DKM (Pengurus Masjid)</option>
+                </select>
+              </div>
+              <button type="submit" disabled={isRegistering} className="mt-4 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-emerald-500/20">
+                {isRegistering ? "Mendaftarkan..." : "Buat Akun Baru"}
+              </button>
+            </form>
+          )}
+
+          <p className="text-center text-xs text-zinc-600 mt-6">Ditenagai oleh Supabase & JWT Auth</p>
         </div>
       </div>
     );
@@ -402,6 +564,14 @@ export default function Home() {
 
         {/* Right side stats */}
         <div className="flex items-center gap-4">
+          <button 
+            onClick={() => setShowExportModal(true)}
+            className="hidden md:flex items-center gap-2 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 px-3 py-1.5 rounded-full hover:bg-indigo-500/30 transition-colors"
+          >
+            <Share2 className="w-4 h-4 text-indigo-400" />
+            <span className="text-xs font-bold text-indigo-300">Share Progress</span>
+          </button>
+
           {/* Active streak */}
           <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-full shadow-inner">
             <Flame className="w-5 h-5 text-amber-500 animate-pulse" />
@@ -500,7 +670,7 @@ export default function Home() {
               <p className="text-xs text-teal-400/80 mb-3">Kelola kebutuhan operasional, volunteer muazin, serta laporan kas masjid digital.</p>
               <div className="text-sm font-bold text-teal-200 flex justify-between items-center bg-[#070707] p-2 rounded-lg border border-teal-500/10">
                 <span>Saldo DKM</span>
-                <span>{selectedMosque.dkm_wallet}</span>
+                <span>{selectedMosque?.dkm_wallet || "Rp 0"}</span>
               </div>
             </div>
           )}
@@ -704,13 +874,16 @@ export default function Home() {
 
                     <div className="bg-[#050505] border border-emerald-900/10 p-4 rounded-xl flex items-center justify-between">
                       <div className="flex flex-col gap-1">
-                        <h4 className="text-sm font-bold text-white">{selectedMosque.name}</h4>
-                        <p className="text-xs text-zinc-400 flex items-center gap-1">
-                          <MapPin className="w-3.5 h-3.5 text-emerald-400" /> {selectedMosque.coordinate}
-                        </p>
-                        <div className="text-xs text-amber-400 font-bold mt-2 flex items-center gap-1">
-                          <Calendar className="w-3.5 h-3.5" /> Kajian Hari Ini: {selectedMosque.kajian}
-                        </div>
+                        {selectedMosque ? (
+                          <>
+                            <h4 className="text-sm font-bold text-white">{selectedMosque.name}</h4>
+                            <p className="text-xs text-zinc-400 flex items-center gap-1">
+                              <MapPin className="w-3.5 h-3.5 text-emerald-400" /> {selectedMosque.coordinate}
+                            </p>
+                          </>
+                        ) : (
+                          <div className="text-sm font-bold text-zinc-500">Belum ada masjid yang dipilih</div>
+                        )}
                       </div>
                       <button 
                         onClick={() => setActiveTab("map")}
@@ -1122,50 +1295,45 @@ export default function Home() {
                     <h3 className="text-sm font-bold text-zinc-300 uppercase tracking-wider">Detail Masjid</h3>
                   </div>
 
-                  <div className="flex flex-col gap-1">
-                    <h4 className="text-lg font-bold text-white">{selectedMosque.name}</h4>
-                    <span className="text-xs text-zinc-500">{selectedMosque.coordinate}</span>
-                  </div>
+                  {selectedMosque ? (
+                    <>
+                      <div className="flex flex-col gap-1">
+                        <h4 className="text-lg font-bold text-white">{selectedMosque.name}</h4>
+                        <span className="text-xs text-zinc-500">{selectedMosque.coordinate}</span>
+                      </div>
 
-                  <div className="border border-emerald-900/20 bg-emerald-950/10 rounded-xl p-4 flex flex-col gap-2">
-                    <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Kegiatan Sosial DKM</span>
-                    
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-zinc-300">Kajian Harian</span>
-                      <span className="font-bold text-emerald-400">{selectedMosque.kajian}</span>
-                    </div>
+                      <div className="border border-emerald-900/20 bg-emerald-950/10 rounded-xl p-4 flex flex-col gap-2">
+                        <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Informasi Peta (OpenStreetMap)</span>
+                        
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-zinc-300">Sumber Data</span>
+                          <span className="font-bold text-emerald-400">Overpass API</span>
+                        </div>
+                      </div>
 
-                    <div className="flex justify-between items-center text-xs mt-1">
-                      <span className="text-zinc-300">Volunteer Muazin</span>
-                      <span className="font-bold text-amber-400">Butuh 2 Orang</span>
-                    </div>
-                  </div>
-
-                  {/* Streak bonus tracker */}
-                  <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/20 px-3 py-2.5 rounded-xl">
-                    <Flame className="w-5 h-5 text-amber-500 shrink-0" />
-                    <div className="text-xs text-amber-300">
-                      <span className="font-bold">Check-In Streak Aktif!</span>
-                      <p className="text-[10px] text-amber-400/80 mt-0.5">Dapatkan **{selectedMosque.streak_bonus}** untuk skor Ibadah Anda!</p>
-                    </div>
-                  </div>
-
-                  {checkedInMosque === selectedMosque.name ? (
-                    <div className="bg-emerald-600 text-white font-bold p-3.5 rounded-xl text-center text-xs flex items-center justify-center gap-2">
-                      <CheckCircle className="w-5 h-5" />
-                      Sudah Check-In Hari Ini!
-                    </div>
+                      {checkedInMosque === selectedMosque.name ? (
+                        <div className="bg-emerald-600 text-white font-bold p-3.5 rounded-xl text-center text-xs flex items-center justify-center gap-2">
+                          <CheckCircle className="w-5 h-5" />
+                          Sudah Check-In Hari Ini!
+                        </div>
+                      ) : (
+                        <button 
+                          onClick={() => {
+                            setCheckedInMosque(selectedMosque.name);
+                            setStreakDays(prev => prev + 1);
+                            alert(`Alhamdulillah! Berhasil check-in di ${selectedMosque.name}. Streak harian Anda bertambah menjadi ${streakDays + 1} hari!`);
+                          }}
+                          className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold py-3.5 rounded-xl text-center text-xs shadow-md shadow-emerald-700/20 hover:opacity-90 transition-all"
+                        >
+                          Lakukan Check-In Ibadah
+                        </button>
+                      )}
+                    </>
                   ) : (
-                    <button 
-                      onClick={() => {
-                        setCheckedInMosque(selectedMosque.name);
-                        setStreakDays(prev => prev + 1);
-                        alert(`Alhamdulillah! Berhasil check-in di ${selectedMosque.name}. Streak harian Anda bertambah menjadi ${streakDays + 1} hari!`);
-                      }}
-                      className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold py-3.5 rounded-xl text-center text-xs shadow-md shadow-emerald-700/20 hover:opacity-90 transition-all"
-                    >
-                      Lakukan Check-In Ibadah
-                    </button>
+                    <div className="flex flex-col items-center justify-center py-10 text-center gap-3 opacity-50">
+                      <MapPin className="w-10 h-10 text-zinc-600" />
+                      <p className="text-xs text-zinc-400">Silakan pilih salah satu masjid pada peta untuk melihat detail dan melakukan check-in.</p>
+                    </div>
                   )}
 
                 </div>
@@ -1178,58 +1346,44 @@ export default function Home() {
                     <span className="font-bold">Peta Masjid Digital (15km radius)</span>
                   </div>
 
-                  {/* Dark Mode Map Canvas */}
-                  <div className="w-full h-full bg-[#050505] rounded-xl relative border border-zinc-900 overflow-hidden flex items-center justify-center">
-                    
-                    {/* Simulated map graphic grids */}
-                    <div className="absolute inset-0 grid grid-cols-6 grid-rows-6 opacity-5 pointer-events-none">
-                      {[...Array(36)].map((_, i) => (
-                        <div key={i} className="border border-emerald-500" />
-                      ))}
-                    </div>
-
-                    {/* Streets mock vectors */}
-                    <div className="absolute top-1/3 left-0 w-full h-1 bg-zinc-900 transform rotate-12 pointer-events-none" />
-                    <div className="absolute top-0 left-1/2 w-1 h-full bg-zinc-900 transform -rotate-45 pointer-events-none" />
-
-                    {/* Mosque Marker 1 (Active/Selected) */}
-                    <button 
-                      onClick={() => setSelectedMosque({
-                        name: "Masjid Raya Al-Jabbar",
-                        coordinate: "POINT(107.6191 -6.9025)",
-                        kajian: "Tafsir Jalalain - Ba'da Maghrib",
-                        dkm_wallet: "Rp 45,200,000",
-                        streak_bonus: "1.5x Multiplier"
-                      })}
-                      className="absolute top-1/4 left-1/3 z-10 flex flex-col items-center gap-1 group"
-                    >
-                      <div className="w-8 h-8 rounded-full bg-emerald-500 border border-white flex items-center justify-center text-white shadow-lg shadow-emerald-500/40 group-hover:scale-110 transition-transform">
-                        <MapPin className="w-4 h-4" />
+                  {/* Real Maps API Canvas */}
+                  <div className="w-full h-full bg-[#050505] rounded-xl relative border border-zinc-900 overflow-hidden flex flex-col items-center justify-center">
+                    {!locationGranted ? (
+                      <div className="flex flex-col items-center gap-4 p-8 text-center h-full justify-center">
+                        <Map className="w-16 h-16 text-emerald-500 mb-2 animate-bounce" />
+                        <h3 className="text-xl font-bold text-white">Akses Lokasi Dibutuhkan</h3>
+                        <p className="text-zinc-400 text-sm max-w-md">Untuk mencari masjid terdekat secara akurat di radius 15km, kami memerlukan lokasi Anda saat ini.</p>
+                        {locationError && <p className="text-red-400 text-xs font-bold">{locationError}</p>}
+                        <button 
+                          onClick={() => {
+                            if (navigator.geolocation) {
+                              navigator.geolocation.getCurrentPosition(
+                                (position) => {
+                                  setUserLocation({ lat: position.coords.latitude, lng: position.coords.longitude });
+                                  setLocationGranted(true);
+                                },
+                                (err) => {
+                                  setLocationError("Akses ditolak. Mohon izinkan lokasi di pengaturan browser Anda.");
+                                }
+                              );
+                            } else {
+                              setLocationError("Browser Anda tidak mendukung Geolocation.");
+                            }
+                          }}
+                          className="mt-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white px-8 py-3.5 rounded-xl font-bold transition-all shadow-lg shadow-emerald-500/20"
+                        >
+                          Izinkan Lokasi & Mulai Cari
+                        </button>
                       </div>
-                      <span className="text-[9px] bg-zinc-950 px-2 py-0.5 rounded text-emerald-400 font-bold border border-emerald-500/20">
-                        Al-Jabbar (1.2km)
-                      </span>
-                    </button>
-
-                    {/* Mosque Marker 2 */}
-                    <button 
-                      onClick={() => setSelectedMosque({
-                        name: "Masjid Raya Bandung (Jami)",
-                        coordinate: "POINT(107.6053 -6.9219)",
-                        kajian: "Fiqih Sunnah - Subuh Berjamaah",
-                        dkm_wallet: "Rp 120,450,000",
-                        streak_bonus: "1.2x Multiplier"
-                      })}
-                      className="absolute bottom-1/3 right-1/4 z-10 flex flex-col items-center gap-1 group"
-                    >
-                      <div className="w-8 h-8 rounded-full bg-zinc-900 border border-zinc-700 flex items-center justify-center text-zinc-400 group-hover:scale-110 transition-transform">
-                        <MapPin className="w-4 h-4" />
+                    ) : (
+                      <div className="w-full h-full relative z-0">
+                        <DynamicOSMMap 
+                          userLocation={userLocation!} 
+                          mosquesList={mosquesList}
+                          onMosqueClick={(mosque) => setSelectedMosque(mosque)}
+                        />
                       </div>
-                      <span className="text-[9px] bg-zinc-950 px-2 py-0.5 rounded text-zinc-400 font-bold border border-zinc-900">
-                        Masjid Raya Bandung (3.4km)
-                      </span>
-                    </button>
-
+                    )}
                   </div>
 
                 </div>
@@ -1585,6 +1739,13 @@ export default function Home() {
 
       </footer>
 
+      <ExportCardModal 
+        isOpen={showExportModal} 
+        onClose={() => setShowExportModal(false)}
+        username={display_name}
+        streakDays={streakDays}
+        pagesRead={pagesReadToday}
+      />
     </div>
   );
 }
